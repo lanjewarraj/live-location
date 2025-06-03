@@ -9,13 +9,20 @@
   />
   <style>
     #map {
-      height: 100vh;
+      height: 90vh;
       width: 100%;
+    }
+    #coords {
+      font-family: Arial, sans-serif;
+      padding: 10px;
+      font-size: 16px;
+      background: #f4f4f4;
     }
   </style>
 </head>
 <body>
 
+<div id="coords">Latitude: -, Longitude: -</div>
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -38,17 +45,21 @@
         const lng = position.coords.longitude;
         const newLatLng = [lat, lng];
 
-        // Move marker and map smoothly
+        // Update marker and map
         marker.setLatLng(newLatLng);
-        marker.bindPopup(`Latitude: ${lat.toFixed(6)}<br>Longitude: ${lng.toFixed(6)}`).openPopup();
+        marker.bindPopup(`You are here<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`).openPopup();
         map.flyTo(newLatLng, 16);
 
-        // Add new point to path
+        // Update path trail
         pathCoords.push(newLatLng);
         pathLine.setLatLngs(pathCoords);
+
+        // Update coordinates display
+        document.getElementById("coords").innerText =
+          `Latitude: ${lat.toFixed(6)}, Longitude: ${lng.toFixed(6)}`;
       },
       function (error) {
-        alert("Error: " + error.message);
+        alert("Location error: " + error.message);
       },
       {
         enableHighAccuracy: true,
