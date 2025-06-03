@@ -1,43 +1,52 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Live GPS Tracker</title>
+  <title>Live GPS Tracker with Routing</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#007bff">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    #map {
-      height: 90vh;
-      width: 100%;
-    }
-    #coords {
-      font-family: Arial, sans-serif;
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #map { height: 80vh; }
+    #coords, #controls {
       padding: 10px;
-      font-size: 16px;
       background: #f4f4f4;
+      font-size: 14px;
     }
-    #recenter-btn {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 1000;
-      padding: 10px 16px;
+    #controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    input, button {
+      padding: 8px;
+      font-size: 14px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
       background: #007bff;
       color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
       cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    #cancelBtn {
+      background: #dc3545;
     }
   </style>
 </head>
 <body>
 
 <div id="coords">Latitude: -, Longitude: -</div>
-<button id="recenter-btn">📍 Recenter</button>
+
+<div id="controls">
+  <input type="text" id="sourceInput" placeholder="Enter source">
+  <input type="text" id="destInput" placeholder="Enter destination">
+  <button id="goBtn">Go</button>
+  <button id="cancelBtn">–</button>
+  <span id="distanceDisplay"></span>
+</div>
+
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -51,12 +60,76 @@
   let marker = L.marker([0, 0]).addTo(map).bindPopup("Waiting for location...");
   let pathCoords = [];
   let pathLine = L.polyline(pathCoords, { color: 'blue' }).addTo(map);
-  let currentPosition = [0, 0]; // Holds the most recent position
+  let currentPosition = [0, 0];
 
-  // Recenter button click handler
-  document.getElementById("recenter-btn").addEventListener("click", () => {
-    map.flyTo(currentPosition, 16);
+  let routeLine = null;
+
+  document.getElementById("goBtn").addEventListener("click", async () => {
+    const src = document.getElementById("sourceInput").value.trim();
+    const dest = document.getElementById("destInput").value.trim();
+    if (!src || !dest) {
+      alert("Please enter both source and destination.");
+      return;
+    }
+
+    const [srcLatLng, destLatLng] = await Promise.all([
+      geocodeLocation(src),
+      geocodeLocation(dest)
+    ]);
+
+    if (!srcLatLng || !destLatLng) {
+      alert("Could not find one or both locations.");
+      return;
+    }
+
+    if (routeLine) map.removeLayer(routeLine);
+
+    routeLine = L.polyline([srcLatLng, destLatLng], { color: 'green' }).addTo(map);
+    map.fitBounds(routeLine.getBounds());
+
+    const dist = getDistance(srcLatLng, destLatLng);
+    document.getElementById("distanceDisplay").innerText =
+      `Distance: ${dist.toFixed(2)} km`;
   });
+
+  document.getElementById("cancelBtn").addEventListener("click", () => {
+    document.getElementById("sourceInput").value = "";
+    document.getElementById("destInput").value = "";
+    document.getElementById("distanceDisplay").innerText = "";
+    if (routeLine) {
+      map.removeLayer(routeLine);
+      routeLine = null;
+    }
+  });
+
+  async function geocodeLocation(query) {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.length > 0) {
+        return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      } else {
+        return null;
+      }
+    } catch (error) {
+      console.error("Geocoding error:", error);
+      return null;
+    }
+  }
+
+  function getDistance([lat1, lon1], [lat2, lon2]) {
+    const R = 6371; // Radius of Earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) *
+      Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
 
   if ("geolocation" in navigator) {
     navigator.geolocation.watchPosition(
@@ -65,15 +138,12 @@
         const lng = position.coords.longitude;
         currentPosition = [lat, lng];
 
-        // Update marker and popup
         marker.setLatLng(currentPosition);
         marker.bindPopup(`You are here<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`).openPopup();
 
-        // Update trail path
         pathCoords.push(currentPosition);
         pathLine.setLatLngs(pathCoords);
 
-        // Update coordinate text
         document.getElementById("coords").innerText =
           `Latitude: ${lat.toFixed(6)}, Longitude: ${lng.toFixed(6)}`;
       },
