@@ -18,18 +18,32 @@
       font-size: 16px;
       background: #f4f4f4;
     }
+    #recenter-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      padding: 10px 16px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
   </style>
 </head>
 <body>
 
 <div id="coords">Latitude: -, Longitude: -</div>
+<button id="recenter-btn">📍 Recenter</button>
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   const map = L.map('map').setView([0, 0], 16);
 
-  // Load OpenStreetMap tiles
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
   }).addTo(map);
@@ -37,24 +51,29 @@
   let marker = L.marker([0, 0]).addTo(map).bindPopup("Waiting for location...");
   let pathCoords = [];
   let pathLine = L.polyline(pathCoords, { color: 'blue' }).addTo(map);
+  let currentPosition = [0, 0]; // Holds the most recent position
+
+  // Recenter button click handler
+  document.getElementById("recenter-btn").addEventListener("click", () => {
+    map.flyTo(currentPosition, 16);
+  });
 
   if ("geolocation" in navigator) {
     navigator.geolocation.watchPosition(
       function (position) {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
-        const newLatLng = [lat, lng];
+        currentPosition = [lat, lng];
 
-        // Update marker and map
-        marker.setLatLng(newLatLng);
+        // Update marker and popup
+        marker.setLatLng(currentPosition);
         marker.bindPopup(`You are here<br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`).openPopup();
-        map.flyTo(newLatLng, 16);
 
-        // Update path trail
-        pathCoords.push(newLatLng);
+        // Update trail path
+        pathCoords.push(currentPosition);
         pathLine.setLatLngs(pathCoords);
 
-        // Update coordinates display
+        // Update coordinate text
         document.getElementById("coords").innerText =
           `Latitude: ${lat.toFixed(6)}, Longitude: ${lng.toFixed(6)}`;
       },
